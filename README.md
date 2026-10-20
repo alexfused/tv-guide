@@ -8,3 +8,4 @@ Guide address for IPTVX: `https://alexfused.github.io/tv-guide/guide.xml.gz`
 - `merge-guides.mjs` adds the [epgshare01](https://epgshare01.online/epgshare01/) UK guide under its own IDs (e.g. `TNT.Sports.1.HD.uk`), because the provider labels some channels that way instead.
 - `.github/workflows/guide.yml` grabs 7 days of listings and publishes them to GitHub Pages. If a run returns fewer than 5,000 programmes it doesn't publish, so the previous guide stays live.
 - To rebuild now: Actions tab → Build TV guide → Run workflow.
+- `aliases.json` maps the provider's own guide codes (e.g. `BBC1.uk`) to guide channels, so those channels get listings too. To refresh it after the provider changes its line-up: run `node export-provider-channels.mjs` (asks for the login; saves only names and codes to the git-ignored `provider-channels.json`), then `node build-aliases.mjs provider-channels.json <a downloaded guide.xml> aliases.json`, and commit `aliases.json`.

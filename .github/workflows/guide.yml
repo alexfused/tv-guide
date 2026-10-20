@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir -p public
           if curl -fsSL --retry 3 https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz | gunzip > epgshare.xml; then
-            node merge-guides.mjs public/guide.xml iptvorg.xml epgshare.xml
+            node merge-guides.mjs --aliases aliases.json public/guide.xml iptvorg.xml epgshare.xml
           else
             echo "epgshare01 download failed, publishing iptv-org listings only"
             cp iptvorg.xml public/guide.xml
@@ -56,7 +56,7 @@ jobs:
           channels=$(grep -o 'channel="[^"]*"' public/guide.xml | sort -u | wc -l)
           echo "Channels with listings: $channels, programmes: $programmes"
           echo "### Channels with listings: $channels, programmes: $programmes" >> "$GITHUB_STEP_SUMMARY"
-          for c in BBCOne.uk ITV1.uk SkySportsMainEvent.uk TNTSports1.uk SkyNews.uk TNT.Sports.1.HD.uk; do
+          for c in BBCOne.uk ITV1.uk SkySportsMainEvent.uk TNTSports1.uk SkyNews.uk TNT.Sports.1.HD.uk BBC1.uk; do
             echo "- $c: $(grep -c "channel=\"$c\"" public/guide.xml || true) programmes" >> "$GITHUB_STEP_SUMMARY"
           done
           if [ "$programmes" -lt 5000 ]; then echo "Too few programmes, not publishing"; exit 1; fi
