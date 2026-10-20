@@ -12,8 +12,7 @@ if (!epgDir || !outFile) {
 
 // Sources in order of preference per country. Earlier sources win when two cover the same channel.
 const SOURCES = {
-  uk: ['sky.com', 'freeview.co.uk', 'mytelly.co.uk', 'player.ee.co.uk'],
-  us: ['tvpassport.com', 'tvguide.com', 'ontvtonight.com']
+  uk: ['sky.com', 'freeview.co.uk', 'mytelly.co.uk', 'player.ee.co.uk']
 }
 // Within one source, prefer these feeds (the part after "@" in iptv-org ids).
 // Unlisted feeds (regional variants like "WalesHD") rank after these.

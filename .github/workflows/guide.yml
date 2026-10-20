@@ -44,10 +44,10 @@ jobs:
           channels=$(grep -o 'channel="[^"]*"' public/guide.xml | sort -u | wc -l)
           echo "Channels with listings: $channels, programmes: $programmes"
           echo "### Channels with listings: $channels, programmes: $programmes" >> "$GITHUB_STEP_SUMMARY"
-          for c in BBCOne.uk SkySportsMainEvent.uk TNTSports1.uk ESPN.us CNN.us; do
+          for c in BBCOne.uk ITV1.uk SkySportsMainEvent.uk TNTSports1.uk SkyNews.uk; do
             echo "- $c: $(grep -c "channel=\"$c\"" public/guide.xml || true) programmes" >> "$GITHUB_STEP_SUMMARY"
           done
-          if [ "$programmes" -lt 20000 ]; then echo "Too few programmes, not publishing"; exit 1; fi
+          if [ "$programmes" -lt 5000 ]; then echo "Too few programmes, not publishing"; exit 1; fi
           gzip -9 -k public/guide.xml
           date -u +"%Y-%m-%dT%H:%M:%SZ" > public/updated.txt
 
