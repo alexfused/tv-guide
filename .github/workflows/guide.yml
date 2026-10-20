@@ -35,7 +35,19 @@ jobs:
 
       - name: Grab listings
         working-directory: epg
-        run: npm run grab --- --channels=../channels.xml --output=../public/guide.xml --days=7 --maxConnections=10 --timeout=30000
+        run: npm run grab --- --channels=../channels.xml --output=../iptvorg.xml --days=7 --maxConnections=10 --timeout=30000
+
+      - name: Add epgshare01 UK guide under its own channel ids
+        # The provider labels some channels in iptv-org style (SkySportsMainEvent.uk) and others in
+        # epgshare01 style (TNT.Sports.1.HD.uk). Carrying both lets IPTVX match either.
+        run: |
+          mkdir -p public
+          if curl -fsSL --retry 3 https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz | gunzip > epgshare.xml; then
+            node merge-guides.mjs public/guide.xml iptvorg.xml epgshare.xml
+          else
+            echo "epgshare01 download failed, publishing iptv-org listings only"
+            cp iptvorg.xml public/guide.xml
+          fi
 
       - name: Check the guide before publishing
         # A nearly empty guide means a source broke; keep yesterday's published guide instead.
@@ -44,7 +56,7 @@ jobs:
           channels=$(grep -o 'channel="[^"]*"' public/guide.xml | sort -u | wc -l)
           echo "Channels with listings: $channels, programmes: $programmes"
           echo "### Channels with listings: $channels, programmes: $programmes" >> "$GITHUB_STEP_SUMMARY"
-          for c in BBCOne.uk ITV1.uk SkySportsMainEvent.uk TNTSports1.uk SkyNews.uk; do
+          for c in BBCOne.uk ITV1.uk SkySportsMainEvent.uk TNTSports1.uk SkyNews.uk TNT.Sports.1.HD.uk; do
             echo "- $c: $(grep -c "channel=\"$c\"" public/guide.xml || true) programmes" >> "$GITHUB_STEP_SUMMARY"
           done
           if [ "$programmes" -lt 5000 ]; then echo "Too few programmes, not publishing"; exit 1; fi
