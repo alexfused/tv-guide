@@ -1,0 +1,66 @@
+name: Build TV guide
+
+on:
+  schedule:
+    - cron: '30 3 * * *' # 03:30 UTC nightly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: guide
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Get iptv-org grabber
+        run: |
+          git clone --depth 1 https://github.com/iptv-org/epg.git epg
+          cd epg && npm ci --no-audit --no-fund
+
+      - name: Pick channels
+        run: node build-channels.mjs epg channels.xml
+
+      - name: Grab listings
+        working-directory: epg
+        run: npm run grab --- --channels=../channels.xml --output=../public/guide.xml --days=7 --maxConnections=10 --timeout=30000
+
+      - name: Check the guide before publishing
+        # A nearly empty guide means a source broke; keep yesterday's published guide instead.
+        run: |
+          programmes=$(grep -c '<programme ' public/guide.xml || true)
+          channels=$(grep -o 'channel="[^"]*"' public/guide.xml | sort -u | wc -l)
+          echo "Channels with listings: $channels, programmes: $programmes"
+          echo "### Channels with listings: $channels, programmes: $programmes" >> "$GITHUB_STEP_SUMMARY"
+          for c in BBCOne.uk SkySportsMainEvent.uk TNTSports1.uk ESPN.us CNN.us; do
+            echo "- $c: $(grep -c "channel=\"$c\"" public/guide.xml || true) programmes" >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$programmes" -lt 20000 ]; then echo "Too few programmes, not publishing"; exit 1; fi
+          gzip -9 -k public/guide.xml
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > public/updated.txt
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
