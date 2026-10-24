@@ -44,6 +44,9 @@ jobs:
           PROVIDER_EPG_URL: ${{ secrets.PROVIDER_EPG_URL }}
         run: |
           if [ -z "$PROVIDER_EPG_URL" ]; then echo "No PROVIDER_EPG_URL secret, skipping"; exit 0; fi
+          # Tolerate extra pasted text, spaces or line breaks around the link: keep the first http(s) URL.
+          PROVIDER_EPG_URL=$(printf '%s' "$PROVIDER_EPG_URL" | tr -d '\r' | grep -oE 'https?://[^[:space:]"<>]+' | head -1)
+          if [ -z "$PROVIDER_EPG_URL" ]; then echo "PROVIDER_EPG_URL secret has no http link in it, skipping"; exit 0; fi
           user=$(printf '%s' "$PROVIDER_EPG_URL" | sed -n 's/.*[?&]username=\([^&]*\).*/\1/p')
           pass=$(printf '%s' "$PROVIDER_EPG_URL" | sed -n 's/.*[?&]password=\([^&]*\).*/\1/p')
           [ -n "$user" ] && echo "::add-mask::$user"
