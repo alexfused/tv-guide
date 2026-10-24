@@ -37,21 +37,56 @@ jobs:
         working-directory: epg
         run: npm run grab --- --channels=../channels.xml --output=../iptvorg.xml --days=7 --maxConnections=10 --timeout=30000
 
-      - name: Add epgshare01 UK guide under its own channel ids
-        # The provider labels some channels in iptv-org style (SkySportsMainEvent.uk) and others in
-        # epgshare01 style (TNT.Sports.1.HD.uk). Carrying both lets IPTVX match either.
+      - name: Get the provider's own guide (optional)
+        # PROVIDER_EPG_URL is a repository secret holding the provider's xmltv.php link. It contains
+        # the account login, so it is masked in logs and never written to the published guide.
+        env:
+          PROVIDER_EPG_URL: ${{ secrets.PROVIDER_EPG_URL }}
+        run: |
+          if [ -z "$PROVIDER_EPG_URL" ]; then echo "No PROVIDER_EPG_URL secret, skipping"; exit 0; fi
+          user=$(printf '%s' "$PROVIDER_EPG_URL" | sed -n 's/.*[?&]username=\([^&]*\).*/\1/p')
+          pass=$(printf '%s' "$PROVIDER_EPG_URL" | sed -n 's/.*[?&]password=\([^&]*\).*/\1/p')
+          [ -n "$user" ] && echo "::add-mask::$user"
+          [ -n "$pass" ] && echo "::add-mask::$pass"
+          if curl -fsSL --retry 3 --max-time 600 -A "IPTVX" "$PROVIDER_EPG_URL" -o provider-raw.xml; then
+            # Keep UK channels only (codes like BBC1.uk, uk.ITV London, UK| ITV 1).
+            node filter-guide.mjs provider-raw.xml provider.xml '(^uk[.| ]|\.uk$|^UK\|)'
+          else
+            echo "Provider guide download failed, carrying on without it"
+          fi
+          rm -f provider-raw.xml
+
+      - name: Merge guides
+        # Provider guide first, so its listings win on its own channel codes. The provider labels
+        # other channels in iptv-org style (SkySportsMainEvent.uk) or epgshare01 style
+        # (TNT.Sports.1.HD.uk), so both are carried too, plus aliases.json for codes in neither.
         run: |
           mkdir -p public
+          inputs=""
+          [ -s provider.xml ] && inputs="provider.xml"
+          inputs="$inputs iptvorg.xml"
           if curl -fsSL --retry 3 https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz | gunzip > epgshare.xml; then
-            node merge-guides.mjs --aliases aliases.json public/guide.xml iptvorg.xml epgshare.xml
+            inputs="$inputs epgshare.xml"
           else
-            echo "epgshare01 download failed, publishing iptv-org listings only"
-            cp iptvorg.xml public/guide.xml
+            echo "epgshare01 download failed, carrying on without it"
           fi
+          node merge-guides.mjs --aliases aliases.json public/guide.xml $inputs
 
       - name: Check the guide before publishing
         # A nearly empty guide means a source broke; keep yesterday's published guide instead.
+        # The guide is public, so the provider login must never appear in it.
+        env:
+          PROVIDER_EPG_URL: ${{ secrets.PROVIDER_EPG_URL }}
         run: |
+          if [ -n "$PROVIDER_EPG_URL" ]; then
+            for part in username password; do
+              value=$(printf '%s' "$PROVIDER_EPG_URL" | sed -n "s/.*[?&]$part=\([^&]*\).*/\1/p")
+              if [ -n "$value" ] && grep -qF "$value" public/guide.xml; then
+                echo "Provider $part found in the guide, not publishing"; exit 1
+              fi
+            done
+            echo "- Provider guide: $( [ -s provider.xml ] && grep -c '<programme ' provider.xml || echo 0 ) UK programmes" >> "$GITHUB_STEP_SUMMARY"
+          fi
           programmes=$(grep -c '<programme ' public/guide.xml || true)
           channels=$(grep -o 'channel="[^"]*"' public/guide.xml | sort -u | wc -l)
           echo "Channels with listings: $channels, programmes: $programmes"
