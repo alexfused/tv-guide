@@ -66,20 +66,21 @@ jobs:
           rm -f provider-raw.xml
 
       - name: Merge guides
-        # Provider guide first, so its listings win on its own channel codes. The provider labels
+        # Provider guide last (--fill): it only covers ~2 days, so it only adds channels the 7-day
+        # sources do not have. The provider labels
         # other channels in iptv-org style (SkySportsMainEvent.uk) or epgshare01 style
         # (TNT.Sports.1.HD.uk), so both are carried too, plus aliases.json for codes in neither.
         run: |
           mkdir -p public
-          inputs=""
-          [ -s provider.xml ] && inputs="provider.xml"
-          inputs="$inputs iptvorg.xml"
+          fill=""
+          [ -s provider.xml ] && fill="--fill provider.xml"
+          inputs="iptvorg.xml"
           if curl -fsSL --retry 3 https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz | gunzip > epgshare.xml; then
             inputs="$inputs epgshare.xml"
           else
             echo "epgshare01 download failed, carrying on without it"
           fi
-          node merge-guides.mjs --aliases aliases.json public/guide.xml $inputs
+          node merge-guides.mjs --aliases aliases.json $fill public/guide.xml $inputs
 
       - name: Check the guide before publishing
         # A nearly empty guide means a source broke; keep yesterday's published guide instead.

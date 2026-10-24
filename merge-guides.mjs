@@ -7,8 +7,11 @@ import { readFileSync, writeFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
 let aliases = {}
-if (args[0] === '--aliases') {
-  aliases = JSON.parse(readFileSync(args[1], 'utf8'))
+// --fill files are merged last, after aliases, so they only add channels nothing else covers.
+const fillInputs = []
+while (args[0] === '--aliases' || args[0] === '--fill') {
+  if (args[0] === '--aliases') aliases = JSON.parse(readFileSync(args[1], 'utf8'))
+  else fillInputs.push(args[1])
   args.splice(0, 2)
 }
 const [outFile, ...inputs] = args
@@ -23,7 +26,7 @@ const escAttr = s => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/<
 
 const channels = new Map()
 const programmesById = new Map()
-for (const file of inputs) {
+function addFile(file) {
   const xml = readFileSync(file, 'utf8')
   const fresh = new Set()
   for (const m of xml.matchAll(channelRe)) {
@@ -41,6 +44,7 @@ for (const file of inputs) {
   }
   console.log(`${file}: ${fresh.size} new channels, ${kept} programmes`)
 }
+for (const file of inputs) addFile(file)
 
 let aliased = 0
 for (const [code, target] of Object.entries(aliases)) {
@@ -51,6 +55,7 @@ for (const [code, target] of Object.entries(aliases)) {
   aliased++
 }
 if (aliased) console.log(`Added listings under ${aliased} provider codes`)
+for (const file of fillInputs) addFile(file)
 
 const programmes = [...programmesById.values()].flat()
 writeFileSync(
